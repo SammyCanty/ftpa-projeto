@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { FaSun, FaMoon } from "react-icons/fa"; // Importando ícones
+import React, { useEffect, useState } from "react";
+import { FaMoon, FaSun } from "react-icons/fa"; // Importando ícones
+import { useNavigate } from "react-router-dom"; // Importando o hook useNavigate
 import "./Login.css"; // Arquivo de estilo
 
 function Login() {
@@ -8,7 +9,11 @@ function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState({});
   const [isLoaded, setIsLoaded] = useState(false);
-  const [theme, setTheme] = useState('dark-mode');
+  const [theme, setTheme] = useState("dark-mode");
+  const [loading, setLoading] = useState(false); // Estado de loading
+  const [loginError, setLoginError] = useState(""); // Estado para erros de login
+
+  const navigate = useNavigate(); // Hook para redirecionamento
 
   useEffect(() => {
     setTimeout(() => {
@@ -41,23 +46,65 @@ function Login() {
     return isValid;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoginError(""); // Reseta erro de login
     if (validate()) {
-      // Lógica de autenticação
-      console.log({ email, password, rememberMe });
-      alert("Login realizado com sucesso!");
+      setLoading(true); // Mostra estado de carregamento
+      try {
+        const response = await fetch("http://localhost:8080/api/users/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            senha: password, // Certifique-se de que o nome da propriedade está correto
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Sucesso no login
+          alert("Login realizado com sucesso!");
+          console.log("Token JWT:", data.token); // Acessa o token JWT
+          // Salve o token no localStorage ou state global
+          localStorage.setItem("token", data.token);
+
+          // Redireciona para o Dashboard após o login
+          navigate("/dashboard");
+        } else if (response.status === 401) {
+          // Erro de autenticação (credenciais inválidas)
+          const errorData = await response.json();
+          setLoginError(errorData.message || "Credenciais inválidas");
+        } else {
+          // Outros erros (erro interno, etc)
+          const errorData = await response.json();
+          setLoginError(errorData.message || "Erro ao realizar o login");
+        }
+      } catch (error) {
+        // Falha na requisição (por exemplo, erro de rede)
+        setLoginError("Falha ao conectar ao servidor");
+      } finally {
+        setLoading(false); // Finaliza estado de carregamento
+      }
     }
   };
 
   const toggleTheme = () => {
-    setTheme(prevTheme => (prevTheme === 'dark-mode' ? 'light-mode' : 'dark-mode'));
+    setTheme((prevTheme) =>
+      prevTheme === "dark-mode" ? "light-mode" : "dark-mode"
+    );
   };
 
   return (
     <>
-      <button onClick={toggleTheme} className="theme-toggle" style={{ color : theme == 'dark-mode' ? 'white' : 'black' }}>
-        {theme === 'dark-mode' ? <FaSun /> : <FaMoon />}
+      <button
+        onClick={toggleTheme}
+        className="theme-toggle"
+        style={{ color: theme === "dark-mode" ? "white" : "black" }}
+      >
+        {theme === "dark-mode" ? <FaSun /> : <FaMoon />}
       </button>
       <div className={`login-container ${isLoaded ? "loaded" : ""}`}>
         <div className="logo">
@@ -98,8 +145,10 @@ function Login() {
             <label htmlFor="rememberMe">Relembrar login e senha</label>
           </div>
 
-          <button type="submit" className="login-button">
-            Login
+          {loginError && <p className="error">{loginError}</p>} {/* Exibe erro de login */}
+
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? "Carregando..." : "Login"}
           </button>
         </form>
       </div>
